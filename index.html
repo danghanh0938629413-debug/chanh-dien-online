@@ -1,0 +1,1312 @@
+<title>Chánh Điện Online</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Serif:ital,wght@0,400;0,600;1,400&family=Be+Vietnam+Pro:wght@400;500;600&display=swap">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<style>
+/* Vietnamese Buddhist Temple 3D — warm interior, single dark theme (deliberate) */
+:root {
+  --bg: #1a110a; --fg: #f5ead6; --muted: #c4a87a; --gold: #e2b04f;
+  --red: #7a2518; --deep: #2a1a0f;
+  --panel: rgba(30,18,10,.78); --line: rgba(226,176,79,.28);
+  --glass: rgba(42,26,15,.65);
+  --display: "Noto Serif", Georgia, "Times New Roman", serif;
+  --body: "Be Vietnam Pro", system-ui, -apple-system, "Segoe UI", sans-serif;
+  color-scheme: dark;
+}
+html, body { height: 100%; margin: 0 }
+body {
+  background: var(--bg); color: var(--fg); font-family: var(--body);
+  overflow: hidden;
+  padding-left: max(0px, env(safe-area-inset-left, 0px));
+  padding-right: max(0px, env(safe-area-inset-right, 0px));
+}
+#scene { position: fixed; inset: 0; z-index: 0 }
+
+/* ── HUD ── */
+.hud { position: fixed; z-index: 10; pointer-events: none }
+.hud * { pointer-events: auto }
+#topBar { top: max(10px, env(safe-area-inset-top, 0px)); left: max(16px, env(safe-area-inset-left, 0px)); right: max(16px, env(safe-area-inset-right, 0px)); display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 8px }
+#bottomBar { bottom: max(10px, env(safe-area-inset-bottom, 0px)); left: max(16px, env(safe-area-inset-left, 0px)); right: max(16px, env(safe-area-inset-right, 0px)); display: flex; justify-content: space-between; align-items: flex-end; flex-wrap: wrap; gap: 8px }
+
+.chip { background: var(--glass); border: 1px solid var(--line); border-radius: 999px; padding: 5px 12px; font-size: 12px; backdrop-filter: blur(12px); display: inline-flex; gap: 5px; align-items: center; white-space: nowrap }
+.chip b { font-family: var(--display); font-weight: 600; color: var(--gold) }
+.n { font-variant-numeric: tabular-nums }
+
+button { font: inherit; cursor: pointer }
+.btn { background: var(--glass); color: var(--fg); border: 1px solid var(--line); border-radius: 999px; padding: 6px 13px; font-size: 12px; backdrop-filter: blur(12px); transition: border-color .25s, background .25s }
+.btn:hover { border-color: var(--gold); background: rgba(226,176,79,.12) }
+.btn:focus-visible, input:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px }
+.btn.primary { background: linear-gradient(135deg, #8a2a1e, #6a1c12); border-color: #c4512e; color: #fff3dc; padding: 12px 24px; font-size: 15px; font-weight: 500; letter-spacing: .02em }
+.btn.gift { display: flex; flex-direction: column; align-items: center; gap: 1px; padding: 6px 10px; border-radius: 12px; min-width: 56px }
+.btn.gift small { color: var(--muted); font-size: 9px; letter-spacing: .05em }
+.btn.gift b { font-family: var(--display); color: var(--gold); font-size: 12px }
+#gifts { display: flex; gap: 5px; flex-wrap: wrap }
+
+/* Merit board */
+#board { position: fixed; right: max(16px, env(safe-area-inset-right, 0px)); top: calc(max(10px, env(safe-area-inset-top, 0px)) + 44px); z-index: 10; background: var(--glass); border: 1px solid var(--line); border-radius: 12px; padding: 9px 11px; min-width: 130px; font-size: 11px; backdrop-filter: blur(12px) }
+#board h3 { margin: 0 0 5px; font-family: var(--display); font-size: 10px; letter-spacing: .12em; text-transform: uppercase; color: var(--gold); font-weight: 600 }
+#board ol { margin: 0; padding-left: 16px; display: grid; gap: 2px }
+#board li { color: var(--fg) }
+#board li span { float: right; color: var(--muted); font-variant-numeric: tabular-nums; margin-left: 8px }
+
+/* Chat feed */
+#feed { position: fixed; left: max(16px, env(safe-area-inset-left, 0px)); bottom: calc(max(10px, env(safe-area-inset-bottom, 0px)) + 50px); z-index: 9; width: min(46%, 220px); display: flex; flex-direction: column; gap: 4px; pointer-events: none; -webkit-mask-image: linear-gradient(to bottom, transparent 0%, #000 30%); mask-image: linear-gradient(to bottom, transparent 0%, #000 30%) }
+.msg { background: rgba(0,0,0,.4); border-radius: 10px; padding: 4px 8px; font-size: 11px; line-height: 1.35; overflow-wrap: anywhere; animation: msgIn .4s ease-out }
+.msg b { color: var(--gold); font-weight: 600 }
+.msg.gift { background: rgba(122,37,24,.45); border: 1px solid rgba(226,176,79,.35) }
+@keyframes msgIn { from { opacity: 0; transform: translateY(8px) } }
+
+/* Toast */
+#toast { position: fixed; left: 50%; top: 12%; transform: translateX(-50%); z-index: 12; background: var(--glass); border: 1px solid var(--line); border-radius: 14px; padding: 10px 20px; font-family: var(--display); color: var(--gold); font-size: 14px; opacity: 0; transition: opacity .5s; pointer-events: none; max-width: 85%; text-align: center; backdrop-filter: blur(14px) }
+#toast.show { opacity: 1 }
+
+/* Banner */
+#banner { position: fixed; top: 28%; left: 50%; transform: translate(-50%, -50%); z-index: 15; pointer-events: none; text-align: center; opacity: 0; transition: opacity .6s }
+#banner.show { opacity: 1 }
+#banner .inner { background: linear-gradient(135deg, rgba(122,37,24,.88), rgba(90,20,10,.88)); border: 1.5px solid var(--gold); border-radius: 14px; padding: 14px 26px; backdrop-filter: blur(12px); box-shadow: 0 0 50px rgba(226,176,79,.25) }
+#banner .name { font-family: var(--display); font-size: 20px; color: var(--gold); font-weight: 600 }
+#banner .act { font-size: 13px; color: var(--fg); margin-top: 3px; opacity: .85 }
+
+/* Audio panel */
+#audioPanel { position: fixed; left: max(16px, env(safe-area-inset-left, 0px)); top: calc(max(10px, env(safe-area-inset-top, 0px)) + 44px); z-index: 10; background: var(--glass); border: 1px solid var(--line); border-radius: 12px; padding: 10px 12px; backdrop-filter: blur(12px); min-width: 150px; font-size: 11px }
+#audioPanel h3 { margin: 0 0 6px; font-family: var(--display); font-size: 10px; letter-spacing: .12em; text-transform: uppercase; color: var(--gold); font-weight: 600 }
+#audioPanel label { display: flex; align-items: center; gap: 6px; color: var(--muted); margin-bottom: 4px; font-size: 10px }
+#audioPanel input[type="range"] { flex: 1; accent-color: var(--gold); height: 3px; max-width: 80px }
+.modes { display: flex; gap: 4px; margin-top: 6px; flex-wrap: wrap }
+.modes button { background: rgba(0,0,0,.3); border: 1px solid var(--line); color: var(--fg); border-radius: 999px; padding: 3px 8px; font-size: 10px; transition: all .2s }
+.modes button.active { background: var(--red); border-color: #c4512e; color: #fff3dc }
+
+/* Gate entry */
+#gate { position: fixed; inset: 0; z-index: 20; display: grid; place-items: center; background: radial-gradient(ellipse at 50% 35%, rgba(226,176,79,.08), rgba(26,17,10,.88) 55%); padding: 16px; padding-top: max(16px, env(safe-area-inset-top, 0px)); padding-bottom: max(16px, env(safe-area-inset-bottom, 0px)) }
+#gate form { width: min(100%, 370px); background: var(--panel); border: 1px solid var(--line); border-radius: 16px; padding: 26px 20px; backdrop-filter: blur(14px); display: flex; flex-direction: column; gap: 12px; box-shadow: 0 20px 60px rgba(0,0,0,.5) }
+#gate h1 { font-family: var(--display); font-weight: 600; font-size: 24px; margin: 0; color: var(--gold); text-wrap: balance; letter-spacing: .02em }
+#gate .subtitle { margin: -4px 0 0; color: var(--muted); font-size: 12px; font-family: var(--display); font-style: italic; letter-spacing: .06em }
+#gate p { margin: 0; color: var(--muted); font-size: 12.5px; line-height: 1.55 }
+label { font-size: 10px; letter-spacing: .1em; text-transform: uppercase; color: var(--muted) }
+input { font: inherit; font-size: 16px; padding: 10px 12px; border-radius: 10px; border: 1px solid var(--line); background: rgba(0,0,0,.35); color: var(--fg); width: 100%; box-sizing: border-box }
+input::placeholder { color: #7d6a52 }
+.seg { display: flex; gap: 5px; flex-wrap: wrap }
+.seg button { background: rgba(0,0,0,.3); border: 1px solid var(--line); color: var(--fg); border-radius: 999px; padding: 4px 10px; font-size: 11px; transition: all .2s }
+.seg button[aria-pressed="true"] { background: var(--red); border-color: #c4512e; color: #fff3dc }
+.row { display: flex; gap: 10px; flex-wrap: wrap; align-items: center }
+.hint { font-size: 10px; color: var(--muted) }
+
+[hidden] { display: none !important }
+@media (prefers-reduced-motion: reduce) { .msg, #toast, #banner { animation: none; transition: none } }
+@media (max-width: 500px) {
+  #audioPanel { min-width: 120px; padding: 8px 9px }
+  #board { min-width: 110px }
+  .btn.gift { min-width: 48px; padding: 5px 7px }
+  .btn.gift b { font-size: 11px }
+}
+</style>
+
+<canvas id="scene"></canvas>
+
+<div id="topBar" class="hud">
+  <span class="chip" id="me" hidden><b id="meName"></b> <span class="hint">đang tụng kinh</span></span>
+  <span class="chip"><span class="n" id="count">0</span> <span>phật tử</span></span>
+</div>
+
+<div id="audioPanel" hidden>
+  <h3>Âm thanh</h3>
+  <label>Tổng <input type="range" id="volMaster" min="0" max="100" value="70"></label>
+  <label>Chuông <input type="range" id="volBell" min="0" max="100" value="80"></label>
+  <label>Mõ <input type="range" id="volMok" min="0" max="100" value="60"></label>
+  <div class="modes" id="audioModes">
+    <button class="active" data-mode="thien">Thiền</button>
+    <button data-mode="tinh">Tĩnh lặng</button>
+    <button data-mode="tung">Tụng kinh</button>
+  </div>
+</div>
+
+<div id="board" hidden><h3>Tấm lòng thành</h3><ol id="boardList"></ol></div>
+<div id="feed" aria-live="polite"></div>
+<div id="banner"><div class="inner"><div class="name" id="bannerName"></div><div class="act" id="bannerAct"></div></div></div>
+
+<div id="bottomBar" class="hud">
+  <span id="gifts" hidden>
+    <button class="btn gift" data-coins="1" data-fx="petal"><b>Cánh sen</b><small>1 xu</small></button>
+    <button class="btn gift" data-coins="5" data-fx="incense"><b>Dâng hương</b><small>5 xu</small></button>
+    <button class="btn gift" data-coins="20" data-fx="lotus"><b>Hoa sen</b><small>20 xu</small></button>
+    <button class="btn gift" data-coins="99" data-fx="bell"><b>Thỉnh chuông</b><small>99 xu</small></button>
+  </span>
+  <span class="row">
+    <button class="btn" id="leave" hidden>Rời chánh điện</button>
+  </span>
+</div>
+
+<div id="toast" role="status"></div>
+
+<div id="gate">
+  <form id="gateForm">
+    <h1>Chánh Điện Online</h1>
+    <p class="subtitle">HANNAH · 3D</p>
+    <p>Nhập pháp danh, chọn y phục rồi bước vào chánh điện. Ngồi an tọa tụng kinh cùng đại chúng, nghe chuông mõ và nhạc thiền.</p>
+    <label for="dharma">Pháp danh</label>
+    <input id="dharma" name="dharma" maxlength="20" autocomplete="nickname" placeholder="Ví dụ: Diệu Hạnh, Minh Tâm…" required>
+    <label>Y phục</label>
+    <div class="seg" id="skin">
+      <button type="button" data-skin="man" aria-pressed="true">Nam áo lam</button>
+      <button type="button" data-skin="woman" aria-pressed="false">Nữ áo lam</button>
+      <button type="button" data-skin="granny" aria-pressed="false">Áo nâu</button>
+      <button type="button" data-skin="monk" aria-pressed="false">Tăng</button>
+      <button type="button" data-skin="nun" aria-pressed="false">Ni</button>
+    </div>
+    <div class="row">
+      <button type="submit" class="btn primary">Vào chánh điện</button>
+    </div>
+    <div class="row"><span class="hint">Chạm vào chánh điện để tụng kinh · Kéo để xoay góc nhìn</span></div>
+    <div class="row"><span class="hint" id="voiceInfo">Đang tìm giọng đọc tiếng Việt…</span></div>
+  </form>
+</div>
+
+<script>
+/* ======================================================================
+   CHÁNH ĐIỆN ONLINE 3D — HANNAH — Premium Upgrade
+   Vietnamese Buddhist Temple with cinematic lighting
+   ====================================================================== */
+const T = THREE;
+const {Scene, PerspectiveCamera, WebGLRenderer, AmbientLight, HemisphereLight, PointLight, SpotLight, DirectionalLight,
+  BoxGeometry, CylinderGeometry, SphereGeometry, PlaneGeometry, CircleGeometry, ConeGeometry, RingGeometry, TorusGeometry,
+  MeshStandardMaterial, MeshBasicMaterial, MeshPhongMaterial, Mesh, Group, Color, Vector3,
+  Fog, DoubleSide, FrontSide, BackSide, AdditiveBlending, NormalBlending,
+  BufferGeometry, Float32BufferAttribute, Points, PointsMaterial,
+  CanvasTexture, RepeatWrapping, ShaderMaterial, ACESFilmicToneMapping} = T;
+
+// ── Renderer ──
+const canvas = document.getElementById('scene');
+const renderer = new WebGLRenderer({canvas, antialias: true});
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+renderer.setSize(innerWidth, innerHeight);
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = T.PCFSoftShadowMap;
+renderer.toneMapping = ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.1;
+renderer.outputEncoding = T.sRGBEncoding;
+
+const scene = new Scene();
+scene.background = new Color(0x1a110a);
+scene.fog = new Fog(0x1a110a, 18, 38);
+
+const camera = new PerspectiveCamera(42, innerWidth / innerHeight, 0.1, 80);
+camera.position.set(0, 3.8, 13);
+
+// ── Lighting: warm, cinematic, temple interior ──
+const hemiLight = new HemisphereLight(0xffeedd, 0x3d2010, 0.45);
+scene.add(hemiLight);
+const ambient = new AmbientLight(0xffe8cc, 0.3);
+scene.add(ambient);
+
+// Main sunlight from upper-left window
+const sunLight = new DirectionalLight(0xffeabb, 1.8);
+sunLight.position.set(-6, 12, 4);
+sunLight.target.position.set(0, 0, -4);
+sunLight.castShadow = true;
+sunLight.shadow.mapSize.set(1024, 1024);
+sunLight.shadow.camera.near = 1; sunLight.shadow.camera.far = 30;
+sunLight.shadow.camera.left = -8; sunLight.shadow.camera.right = 8;
+sunLight.shadow.camera.top = 14; sunLight.shadow.camera.bottom = -2;
+sunLight.shadow.bias = -0.002;
+scene.add(sunLight, sunLight.target);
+
+// Warm fill from right
+const fillLight = new DirectionalLight(0xffddaa, 0.4);
+fillLight.position.set(5, 8, 3);
+scene.add(fillLight);
+
+// Buddha spotlight — key visual anchor
+const buddhaSpot = new SpotLight(0xffd080, 2.5, 16, Math.PI / 6, 0.6, 1.2);
+buddhaSpot.position.set(0, 11, -4);
+buddhaSpot.target.position.set(0, 3, -7.5);
+buddhaSpot.castShadow = true;
+buddhaSpot.shadow.mapSize.set(512, 512);
+scene.add(buddhaSpot, buddhaSpot.target);
+
+// Candle/lamp lights
+const candleLights = [];
+[[-3.5, 2.8, -6.5], [3.5, 2.8, -6.5], [-1.5, 2.3, -6], [1.5, 2.3, -6], [0, 3, -6.2]].forEach(([x, y, z]) => {
+  const l = new PointLight(0xffaa55, 0.7, 8, 2);
+  l.position.set(x, y, z);
+  scene.add(l);
+  candleLights.push(l);
+});
+
+// Buddha back-glow
+const buddhaGlow = new PointLight(0xffd700, 1.0, 10, 1.5);
+buddhaGlow.position.set(0, 5.5, -8.5);
+scene.add(buddhaGlow);
+
+// ── Procedural textures ──
+function tex(w, h, fn) {
+  const c = document.createElement('canvas'); c.width = w; c.height = h;
+  fn(c.getContext('2d'), w, h);
+  const t = new CanvasTexture(c); t.wrapS = t.wrapT = RepeatWrapping; return t;
+}
+
+const woodTex = tex(512, 512, (g, W, H) => {
+  g.fillStyle = '#5a3018'; g.fillRect(0, 0, W, H);
+  for (let i = 0; i < 80; i++) {
+    const y = i * H / 80 + (Math.random() - 0.5) * 3;
+    g.strokeStyle = `rgba(${75+Math.random()*25},${38+Math.random()*18},${18+Math.random()*12},${0.12+Math.random()*0.12})`;
+    g.lineWidth = 0.5 + Math.random() * 2.5;
+    g.beginPath(); g.moveTo(0, y);
+    for (let x = 0; x < W; x += 20) g.lineTo(x, y + (Math.random() - 0.5) * 2);
+    g.stroke();
+  }
+});
+
+const tileTex = tex(512, 512, (g, W, H) => {
+  g.fillStyle = '#4a3020'; g.fillRect(0, 0, W, H);
+  const ts = 64;
+  for (let x = 0; x < W / ts; x++) for (let y = 0; y < H / ts; y++) {
+    const off = (y % 2) * ts / 2;
+    const r = 52 + Math.random() * 20, gr = 34 + Math.random() * 14, b = 22 + Math.random() * 10;
+    g.fillStyle = `rgb(${r},${gr},${b})`;
+    g.fillRect(x * ts + off + 1, y * ts + 1, ts - 2, ts - 2);
+    g.strokeStyle = `rgba(30,18,10,.5)`; g.lineWidth = 1;
+    g.strokeRect(x * ts + off + 1, y * ts + 1, ts - 2, ts - 2);
+  }
+});
+tileTex.repeat.set(5, 10);
+
+const wallTex = tex(256, 256, (g, W, H) => {
+  g.fillStyle = '#6b4a30'; g.fillRect(0, 0, W, H);
+  for (let i = 0; i < 300; i++) {
+    g.fillStyle = `rgba(${80+Math.random()*40},${50+Math.random()*25},${30+Math.random()*15},${0.15+Math.random()*0.15})`;
+    const s = 2 + Math.random() * 6;
+    g.fillRect(Math.random() * W, Math.random() * H, s, s);
+  }
+});
+
+// ── Materials ──
+const floorMat = new MeshStandardMaterial({map: tileTex, roughness: 0.75, metalness: 0.02, color: 0x8a6848});
+const wallMat = new MeshStandardMaterial({map: wallTex, roughness: 0.82, color: 0x6b4a30});
+const pillarMat = new MeshStandardMaterial({map: woodTex, roughness: 0.5, color: 0x7a4020});
+const roofMat = new MeshStandardMaterial({color: 0x3a2214, roughness: 0.8, map: woodTex});
+const beamMat = new MeshStandardMaterial({map: woodTex, color: 0x6b3518, roughness: 0.55});
+const goldMat = new MeshStandardMaterial({color: 0xe8c050, roughness: 0.25, metalness: 0.75, emissive: 0x553300, emissiveIntensity: 0.35});
+const brightGoldMat = new MeshStandardMaterial({color: 0xf0d060, roughness: 0.2, metalness: 0.8, emissive: 0x664400, emissiveIntensity: 0.5});
+const altarMat = new MeshStandardMaterial({map: woodTex, color: 0x7a4025, roughness: 0.45, metalness: 0.08});
+const cushionMat = new MeshStandardMaterial({color: 0x8b2215, roughness: 0.85});
+const redClothMat = new MeshStandardMaterial({color: 0x9a2a18, roughness: 0.7});
+
+const SKIN_COLORS = {
+  man: {robe: 0x4478aa, inner: 0x3a6590},
+  woman: {robe: 0x4478aa, inner: 0x3a6590},
+  granny: {robe: 0x6b4226, inner: 0x5a3820},
+  monk: {robe: 0xc8872e, inner: 0xb07828},
+  nun: {robe: 0x777777, inner: 0x666666}
+};
+
+// ── Temple structure ──
+const temple = new Group();
+scene.add(temple);
+
+// Floor
+const floor = new Mesh(new PlaneGeometry(22, 28), floorMat);
+floor.rotation.x = -Math.PI / 2; floor.position.set(0, 0, -1);
+floor.receiveShadow = true;
+temple.add(floor);
+
+// Walls — back
+const backWall = new Mesh(new BoxGeometry(22, 12, 0.5), wallMat);
+backWall.position.set(0, 6, -10.25); backWall.receiveShadow = true;
+temple.add(backWall);
+
+// Walls — sides with window openings (upper cutouts simulated by layered panels)
+[-11, 11].forEach(x => {
+  const sign = Math.sign(x);
+  // Lower wall
+  const lower = new Mesh(new BoxGeometry(0.5, 5, 22), wallMat);
+  lower.position.set(x, 2.5, -1); lower.receiveShadow = true;
+  temple.add(lower);
+  // Upper wall sections (with gaps for windows)
+  for (let z = -9; z <= 7; z += 4) {
+    const upper = new Mesh(new BoxGeometry(0.5, 4, 2.5), wallMat);
+    upper.position.set(x, 9, z); temple.add(upper);
+  }
+  // Window sills (gold trim)
+  for (let z = -7; z <= 5; z += 4) {
+    const sill = new Mesh(new BoxGeometry(0.15, 0.12, 1.3), goldMat);
+    sill.position.set(x - sign * 0.2, 5, z); temple.add(sill);
+    const top = new Mesh(new BoxGeometry(0.15, 0.12, 1.3), goldMat);
+    top.position.set(x - sign * 0.2, 7, z); temple.add(top);
+  }
+});
+
+// ── Roof with Vietnamese curved eaves ──
+// Main ceiling
+const ceilGeo = new PlaneGeometry(22, 22);
+const ceilingMesh = new Mesh(ceilGeo, roofMat);
+ceilingMesh.rotation.x = Math.PI / 2; ceilingMesh.position.set(0, 11.5, -1);
+temple.add(ceilingMesh);
+
+// Roof beams
+for (let z = -9; z <= 8; z += 3.4) {
+  const beam = new Mesh(new BoxGeometry(22, 0.35, 0.4), beamMat);
+  beam.position.set(0, 11.3, z); temple.add(beam);
+}
+for (let x = -9; x <= 9; x += 4.5) {
+  const cross = new Mesh(new BoxGeometry(0.3, 0.25, 22), beamMat);
+  cross.position.set(x, 11.15, -1); temple.add(cross);
+}
+
+// Curved eave sections (front and back)
+function makeEave(z, rotY) {
+  const g = new Group();
+  for (let i = 0; i < 8; i++) {
+    const t = i / 7;
+    const x = (t - 0.5) * 22;
+    const curve = Math.pow(Math.abs(t - 0.5) * 2, 2) * 1.2;
+    const piece = new Mesh(new BoxGeometry(3.2, 0.15, 1.5), roofMat);
+    piece.position.set(x, 11.5 - curve, 0);
+    piece.rotation.x = curve * 0.3;
+    g.add(piece);
+  }
+  g.position.z = z; g.rotation.y = rotY;
+  return g;
+}
+temple.add(makeEave(10, 0));
+temple.add(makeEave(-12, 0));
+
+// ── Pillars — tall wooden columns with bases and capitals ──
+const pGeo = new CylinderGeometry(0.28, 0.32, 11, 16);
+const pBase = new CylinderGeometry(0.48, 0.52, 0.35, 16);
+const pCap = new CylinderGeometry(0.5, 0.28, 0.45, 16);
+for (let z = -8; z <= 7; z += 3) {
+  [-4.5, 4.5].forEach(x => {
+    const p = new Mesh(pGeo, pillarMat); p.position.set(x, 5.5, z); p.castShadow = true; temple.add(p);
+    const b = new Mesh(pBase, new MeshStandardMaterial({map: woodTex, color: 0x5a2e15, roughness: 0.5})); b.position.set(x, 0.17, z); temple.add(b);
+    const c = new Mesh(pCap, goldMat); c.position.set(x, 11.05, z); temple.add(c);
+    // Decorative ring
+    const ring = new Mesh(new TorusGeometry(0.34, 0.03, 8, 16), goldMat);
+    ring.rotation.x = Math.PI / 2; ring.position.set(x, 10.5, z); temple.add(ring);
+  });
+}
+
+// ── Altar complex ──
+const altar = new Group();
+altar.position.set(0, 0, -7.8);
+temple.add(altar);
+
+// Multi-tier altar table
+const tierMat = new MeshStandardMaterial({map: woodTex, color: 0x7a3a1e, roughness: 0.4, metalness: 0.1});
+// Helper to place a mesh
+function placed(mesh, x, y, z, opts) {
+  mesh.position.set(x, y, z);
+  if (opts) { if (opts.receiveShadow) mesh.receiveShadow = true; if (opts.castShadow) mesh.castShadow = true; }
+  return mesh;
+}
+// Bottom tier
+altar.add(placed(new Mesh(new BoxGeometry(7, 0.8, 3), tierMat), 0, 0.4, 0, {receiveShadow: true, castShadow: true}));
+altar.add(placed(new Mesh(new BoxGeometry(7.1, 0.06, 3.1), goldMat), 0, 0.81, 0));
+// Middle tier
+altar.add(placed(new Mesh(new BoxGeometry(5.5, 0.7, 2.4), tierMat), 0, 1.15, -0.2, {castShadow: true}));
+altar.add(placed(new Mesh(new BoxGeometry(5.6, 0.05, 2.5), goldMat), 0, 1.52, -0.2));
+// Top tier
+altar.add(placed(new Mesh(new BoxGeometry(4, 0.6, 2), tierMat), 0, 1.82, -0.35, {castShadow: true}));
+altar.add(placed(new Mesh(new BoxGeometry(4.1, 0.05, 2.1), goldMat), 0, 2.13, -0.35));
+
+// Altar cloth drape (red cloth hanging in front)
+const cloth = new Mesh(new PlaneGeometry(6.8, 0.6), redClothMat);
+cloth.position.set(0, 0.5, 1.52); temple.add(cloth); altar.add(cloth);
+// Gold trim on cloth
+const clothTrim = new Mesh(new PlaneGeometry(6.8, 0.06), goldMat);
+clothTrim.position.set(0, 0.81, 1.52); altar.add(clothTrim);
+
+// ── Buddha statue — detailed seated figure ──
+const buddha = new Group();
+buddha.position.set(0, 2.15, -0.35);
+altar.add(buddha);
+
+// Lotus pedestal
+const lotusBase = new Mesh(new CylinderGeometry(1.3, 1.5, 0.4, 24), brightGoldMat);
+lotusBase.position.y = 0; buddha.add(lotusBase);
+// Lotus petals around base
+for (let i = 0; i < 16; i++) {
+  const angle = (i / 16) * Math.PI * 2;
+  const petal = new Mesh(new SphereGeometry(0.22, 6, 4), brightGoldMat);
+  petal.scale.set(1, 0.5, 0.6);
+  petal.position.set(Math.cos(angle) * 1.35, 0.1, Math.sin(angle) * 1.35);
+  petal.rotation.y = -angle;
+  petal.rotation.z = 0.5;
+  buddha.add(petal);
+}
+// Upper lotus ring
+for (let i = 0; i < 12; i++) {
+  const angle = (i / 12) * Math.PI * 2 + 0.15;
+  const petal = new Mesh(new SphereGeometry(0.18, 6, 4), brightGoldMat);
+  petal.scale.set(1, 0.5, 0.5);
+  petal.position.set(Math.cos(angle) * 1.15, 0.25, Math.sin(angle) * 1.15);
+  petal.rotation.y = -angle;
+  petal.rotation.z = 0.8;
+  buddha.add(petal);
+}
+
+// Seated legs (crossed, wide base)
+const legsMat = brightGoldMat;
+const legs = new Mesh(new CylinderGeometry(0.85, 1.0, 0.5, 16), legsMat);
+legs.position.y = 0.5; legs.scale.y = 0.6; buddha.add(legs);
+// Knee bumps
+[-0.6, 0.6].forEach(x => {
+  const knee = new Mesh(new SphereGeometry(0.28, 10, 8), legsMat);
+  knee.position.set(x, 0.5, 0.35); knee.scale.y = 0.5; buddha.add(knee);
+});
+
+// Torso
+const torso = new Mesh(new CylinderGeometry(0.5, 0.7, 1.6, 16), brightGoldMat);
+torso.position.y = 1.5; buddha.add(torso);
+
+// Shoulders
+[-0.55, 0.55].forEach(x => {
+  const shoulder = new Mesh(new SphereGeometry(0.22, 10, 8), brightGoldMat);
+  shoulder.position.set(x, 2.1, 0); buddha.add(shoulder);
+});
+
+// Arms (resting in lap — meditation mudra)
+[-0.4, 0.4].forEach((x, i) => {
+  const upper = new Mesh(new CylinderGeometry(0.1, 0.12, 0.9, 8), brightGoldMat);
+  upper.position.set(x * 1.1, 1.5, 0.2);
+  upper.rotation.z = x > 0 ? -0.6 : 0.6;
+  upper.rotation.x = -0.3;
+  buddha.add(upper);
+});
+// Hands in lap (dhyana mudra)
+const hands = new Mesh(new SphereGeometry(0.22, 10, 8), brightGoldMat);
+hands.scale.set(1.4, 0.5, 0.8);
+hands.position.set(0, 0.95, 0.45);
+buddha.add(hands);
+
+// Neck
+const neck = new Mesh(new CylinderGeometry(0.18, 0.22, 0.3, 10), brightGoldMat);
+neck.position.y = 2.45; buddha.add(neck);
+
+// Head
+const head = new Mesh(new SphereGeometry(0.42, 20, 16), brightGoldMat);
+head.position.y = 2.9; head.scale.set(1, 1.1, 0.95); buddha.add(head);
+
+// Face plane (subtle darker area for face)
+const faceMat = new MeshStandardMaterial({color: 0xdaa840, roughness: 0.35, metalness: 0.6});
+const face = new Mesh(new CircleGeometry(0.3, 16), faceMat);
+face.position.set(0, 2.85, 0.38); buddha.add(face);
+
+// Eyes (closed, serene) — thin curved lines
+[-0.12, 0.12].forEach(x => {
+  const eye = new Mesh(new BoxGeometry(0.1, 0.015, 0.02), new MeshStandardMaterial({color: 0x443300, roughness: 0.9}));
+  eye.position.set(x, 2.88, 0.4); eye.rotation.z = x > 0 ? 0.1 : -0.1;
+  buddha.add(eye);
+});
+// Subtle smile
+const smile = new Mesh(new BoxGeometry(0.08, 0.01, 0.02), new MeshStandardMaterial({color: 0x554422, roughness: 0.9}));
+smile.position.set(0, 2.77, 0.42); buddha.add(smile);
+
+// Elongated earlobes
+[-0.38, 0.38].forEach(x => {
+  const ear = new Mesh(new CylinderGeometry(0.04, 0.03, 0.25, 6), brightGoldMat);
+  ear.position.set(x, 2.7, 0); ear.rotation.z = x > 0 ? 0.1 : -0.1;
+  buddha.add(ear);
+});
+
+// Ushnisha (top knot)
+const ushnisha = new Mesh(new SphereGeometry(0.2, 12, 8), brightGoldMat);
+ushnisha.position.y = 3.3; buddha.add(ushnisha);
+// Hair curls texture (small bumps)
+for (let i = 0; i < 20; i++) {
+  const phi = Math.acos(1 - Math.random() * 0.8);
+  const theta = Math.random() * Math.PI * 2;
+  const curl = new Mesh(new SphereGeometry(0.04, 4, 3), brightGoldMat);
+  curl.position.set(
+    Math.sin(phi) * Math.cos(theta) * 0.43,
+    2.9 + Math.cos(phi) * 0.43,
+    Math.sin(phi) * Math.sin(theta) * 0.42
+  );
+  if (curl.position.z > 0.3) continue;
+  buddha.add(curl);
+}
+
+// ── Halo behind Buddha ──
+const haloGroup = new Group();
+haloGroup.position.set(0, 2.9, -0.5);
+buddha.add(haloGroup);
+
+// Concentric rings
+[2.0, 2.5, 3.0].forEach((r, i) => {
+  const geo = new TorusGeometry(r, 0.035 - i * 0.005, 8, 64);
+  const mat = new MeshBasicMaterial({color: 0xffd700, transparent: true, opacity: 0.5 - i * 0.12});
+  const ring = new Mesh(geo, mat);
+  haloGroup.add(ring);
+});
+
+// Radial rays
+for (let i = 0; i < 24; i++) {
+  const angle = (i / 24) * Math.PI * 2;
+  const ray = new Mesh(new BoxGeometry(0.02, 0.02, 1.2), new MeshBasicMaterial({color: 0xffd700, transparent: true, opacity: 0.15}));
+  ray.position.set(Math.cos(angle) * 2, Math.sin(angle) * 2, 0);
+  ray.rotation.z = angle;
+  haloGroup.add(ray);
+}
+
+// Filled glow disc
+const glowMat = new MeshBasicMaterial({color: 0xffd700, transparent: true, opacity: 0.06, side: DoubleSide});
+const glowDisc = new Mesh(new CircleGeometry(3.2, 32), glowMat);
+haloGroup.add(glowDisc);
+
+// ── Offering items ──
+// Candles on altar
+[-2, -1, 1, 2].forEach(x => {
+  const candle = new Mesh(new CylinderGeometry(0.04, 0.05, 0.4, 8), new MeshStandardMaterial({color: 0xcc2211, emissive: 0x330000, emissiveIntensity: 0.3}));
+  candle.position.set(x, 1.7 + (Math.abs(x) > 1.5 ? -0.35 : 0.32), 0.6);
+  altar.add(candle);
+  const flame = new Mesh(new ConeGeometry(0.03, 0.08, 6), new MeshBasicMaterial({color: 0xffcc44}));
+  flame.position.set(x, 1.95 + (Math.abs(x) > 1.5 ? -0.35 : 0.32), 0.6);
+  altar.add(flame);
+});
+
+// Incense bowl (lư hương)
+const luHuong = new Group();
+luHuong.position.set(0, 0.82, 1.0);
+altar.add(luHuong);
+const bowlBody = new Mesh(new CylinderGeometry(0.22, 0.15, 0.3, 12), new MeshStandardMaterial({color: 0x8b6633, metalness: 0.6, roughness: 0.3}));
+luHuong.add(bowlBody);
+const bowlRim = new Mesh(new TorusGeometry(0.22, 0.02, 6, 16), new MeshStandardMaterial({color: 0xaa8844, metalness: 0.7}));
+bowlRim.rotation.x = Math.PI / 2; bowlRim.position.y = 0.15;
+luHuong.add(bowlRim);
+
+// Flower vases with lotus
+[-2.5, 2.5].forEach(x => {
+  const vase = new Mesh(new CylinderGeometry(0.08, 0.14, 0.5, 10), new MeshStandardMaterial({color: 0x225588, roughness: 0.25, metalness: 0.3}));
+  vase.position.set(x, 1.05, 0.8); altar.add(vase);
+  // Lotus flowers
+  for (let j = 0; j < 2; j++) {
+    const stem = new Mesh(new CylinderGeometry(0.01, 0.01, 0.5, 4), new MeshStandardMaterial({color: 0x3a7a3a}));
+    stem.position.set(x + (j - 0.5) * 0.1, 1.55, 0.8); altar.add(stem);
+    const flower = new Group();
+    flower.position.set(x + (j - 0.5) * 0.1, 1.8 + j * 0.1, 0.8);
+    for (let p = 0; p < 6; p++) {
+      const a = (p / 6) * Math.PI * 2;
+      const petal = new Mesh(new SphereGeometry(0.05, 5, 4), new MeshStandardMaterial({color: 0xffaacc, emissive: 0x220011}));
+      petal.scale.set(1, 0.4, 0.5);
+      petal.position.set(Math.cos(a) * 0.06, 0, Math.sin(a) * 0.06);
+      petal.rotation.y = -a; petal.rotation.z = 0.6;
+      flower.add(petal);
+    }
+    altar.add(flower);
+  }
+});
+
+// Fruit plate
+const plate = new Mesh(new CylinderGeometry(0.25, 0.2, 0.06, 12), new MeshStandardMaterial({color: 0xddcc88, roughness: 0.4}));
+plate.position.set(0, 0.84, 0.6); altar.add(plate);
+[0, 0.12, -0.12].forEach((ox, i) => {
+  const fruit = new Mesh(new SphereGeometry(0.06, 8, 6), new MeshStandardMaterial({color: [0xee8800, 0xcc2200, 0xeedd00][i]}));
+  fruit.position.set(ox, 0.93, 0.6 + (i - 1) * 0.05); altar.add(fruit);
+});
+
+// ── Hanging lanterns ──
+[-3, 0, 3].forEach(x => {
+  const lanternGroup = new Group();
+  lanternGroup.position.set(x, 9, -3);
+  temple.add(lanternGroup);
+  // String
+  const string = new Mesh(new CylinderGeometry(0.01, 0.01, 2.5, 4), new MeshStandardMaterial({color: 0x553322}));
+  string.position.y = 1.25; lanternGroup.add(string);
+  // Lantern body
+  const lantern = new Mesh(new CylinderGeometry(0.25, 0.2, 0.6, 8), new MeshStandardMaterial({color: 0xcc3322, emissive: 0x441100, emissiveIntensity: 0.4, transparent: true, opacity: 0.85}));
+  lanternGroup.add(lantern);
+  // Gold rings
+  [0.3, -0.3].forEach(y => {
+    const r = new Mesh(new TorusGeometry(0.26, 0.015, 6, 12), goldMat);
+    r.rotation.x = Math.PI / 2; r.position.y = y; lanternGroup.add(r);
+  });
+  // Tassel
+  const tassel = new Mesh(new ConeGeometry(0.04, 0.2, 6), new MeshStandardMaterial({color: 0xcc3322}));
+  tassel.position.y = -0.4; lanternGroup.add(tassel);
+});
+
+// ── Cushion seats ──
+const ROWS = 5, COLS = 6, AISLE = 0.6;
+const seats = [];
+const cushGeo = new CylinderGeometry(0.28, 0.32, 0.1, 14);
+
+for (let r = 0; r < ROWS; r++) {
+  for (let c = 0; c < COLS; c++) {
+    const xB = (c - (COLS - 1) / 2) * 1.25;
+    const x = xB + (xB > 0 ? AISLE : xB < 0 ? -AISLE : 0);
+    const z = 1.5 + r * 1.5;
+    const cush = new Mesh(cushGeo, cushionMat);
+    cush.position.set(x, 0.05, z); cush.receiveShadow = true;
+    temple.add(cush);
+    // Small mat under cushion
+    const mat2 = new Mesh(new PlaneGeometry(0.6, 0.6), new MeshStandardMaterial({color: 0x6b4226, roughness: 0.9}));
+    mat2.rotation.x = -Math.PI / 2; mat2.position.set(x, 0.01, z);
+    temple.add(mat2);
+    seats.push({x, z, mesh: cush, taken: null, r, c});
+  }
+}
+seats.sort((a, b) => (a.r - b.r) || (Math.abs(a.x) - Math.abs(b.x)));
+
+// ── Sunlight volumetric beam (mesh-based fake) ──
+const beamGeo = new CylinderGeometry(0.5, 3, 14, 12, 1, true);
+const beamMesh = new Mesh(beamGeo, new MeshBasicMaterial({
+  color: 0xffeebb, transparent: true, opacity: 0.035, side: DoubleSide, depthWrite: false
+}));
+beamMesh.position.set(-4, 6, 0);
+beamMesh.rotation.z = 0.35;
+scene.add(beamMesh);
+
+// Second beam
+const beam2 = new Mesh(new CylinderGeometry(0.3, 2, 12, 10, 1, true), new MeshBasicMaterial({
+  color: 0xffeebb, transparent: true, opacity: 0.025, side: DoubleSide, depthWrite: false
+}));
+beam2.position.set(3, 6, -2);
+beam2.rotation.z = -0.2;
+scene.add(beam2);
+
+// ── Dust motes in sunlight ──
+const dustCount = 200;
+const dustGeo = new BufferGeometry();
+const dustPos = new Float32Array(dustCount * 3);
+const dustData = [];
+for (let i = 0; i < dustCount; i++) {
+  dustPos[i * 3] = (Math.random() - 0.5) * 16;
+  dustPos[i * 3 + 1] = Math.random() * 10 + 1;
+  dustPos[i * 3 + 2] = (Math.random() - 0.5) * 16 - 1;
+  dustData.push({vx: (Math.random() - 0.5) * 0.1, vy: (Math.random() - 0.5) * 0.05, vz: (Math.random() - 0.5) * 0.1});
+}
+dustGeo.setAttribute('position', new Float32BufferAttribute(dustPos, 3));
+const dustMotes = new Points(dustGeo, new PointsMaterial({
+  color: 0xffeedd, size: 0.04, transparent: true, opacity: 0.4, blending: AdditiveBlending, depthWrite: false
+}));
+scene.add(dustMotes);
+
+// ── Incense smoke particles ──
+const smokeCount = 80;
+const smokeGeo = new BufferGeometry();
+const smokePos = new Float32Array(smokeCount * 3);
+const smokeVel = [];
+for (let i = 0; i < smokeCount; i++) {
+  smokePos[i * 3] = (Math.random() - 0.5) * 0.3 - 7.8;
+  smokePos[i * 3 + 1] = 1 + Math.random() * 5;
+  smokePos[i * 3 + 2] = -6.8 + Math.random() * 0.2;
+  smokeVel.push({vx: (Math.random() - 0.5) * 0.15, vy: 0.15 + Math.random() * 0.3, vz: (Math.random() - 0.5) * 0.05});
+}
+smokeGeo.setAttribute('position', new Float32BufferAttribute(smokePos, 3));
+const smoke = new Points(smokeGeo, new PointsMaterial({
+  color: 0xe8dcc6, size: 0.12, transparent: true, opacity: 0.2, blending: AdditiveBlending, depthWrite: false
+}));
+scene.add(smoke);
+
+// ── Gift petal particles ──
+const petalParticles = [];
+function spawnPetals(origin, count, color) {
+  for (let i = 0; i < count; i++) {
+    const geo = new SphereGeometry(0.04, 4, 3);
+    const mat = new MeshBasicMaterial({color: color || 0xff88aa, transparent: true, opacity: 0.85});
+    const m = new Mesh(geo, mat);
+    m.scale.set(1.2, 0.35, 0.8);
+    m.position.copy(origin);
+    scene.add(m);
+    petalParticles.push({
+      mesh: m, vx: (Math.random() - 0.5) * 2.5, vy: 1.5 + Math.random() * 3,
+      vz: (Math.random() - 0.5) * 2.5, life: 2.5 + Math.random() * 2, age: 0,
+      spin: Math.random() * 5
+    });
+  }
+}
+
+// ── Visitors (3D seated figures) ──
+const visitors = [];
+let me = null;
+
+function makeAvatar(skin) {
+  const g = new Group();
+  const cols = SKIN_COLORS[skin] || SKIN_COLORS.man;
+  const robeMat = new MeshStandardMaterial({color: cols.robe, roughness: 0.72});
+  const innerMat = new MeshStandardMaterial({color: cols.inner, roughness: 0.8});
+  const skinMat = new MeshStandardMaterial({color: 0xdeb887, roughness: 0.75});
+
+  // Crossed legs base
+  const legBase = new Mesh(new CylinderGeometry(0.22, 0.28, 0.12, 10), robeMat);
+  legBase.position.y = 0.1; g.add(legBase);
+  // Knee outlines
+  [-0.18, 0.18].forEach(x => {
+    const knee = new Mesh(new SphereGeometry(0.09, 8, 6), robeMat);
+    knee.position.set(x, 0.12, 0.1); knee.scale.y = 0.5; g.add(knee);
+  });
+
+  // Torso
+  const torso = new Mesh(new CylinderGeometry(0.13, 0.18, 0.4, 10), robeMat);
+  torso.position.y = 0.36; g.add(torso);
+
+  // Shoulders
+  const shoulders = new Mesh(new SphereGeometry(0.16, 8, 6), robeMat);
+  shoulders.scale.set(1.3, 0.5, 0.8);
+  shoulders.position.y = 0.52; g.add(shoulders);
+
+  // Arms folded in prayer
+  [-0.14, 0.14].forEach(x => {
+    const arm = new Mesh(new CylinderGeometry(0.04, 0.05, 0.25, 6), robeMat);
+    arm.position.set(x, 0.38, 0.08);
+    arm.rotation.z = x > 0 ? -0.5 : 0.5;
+    arm.rotation.x = -0.4;
+    g.add(arm);
+  });
+  // Hands together (prayer)
+  const handL = new Mesh(new SphereGeometry(0.04, 6, 4), skinMat);
+  handL.position.set(-0.02, 0.42, 0.16); handL.scale.set(0.8, 1, 0.5); g.add(handL);
+  const handR = new Mesh(new SphereGeometry(0.04, 6, 4), skinMat);
+  handR.position.set(0.02, 0.42, 0.16); handR.scale.set(0.8, 1, 0.5); g.add(handR);
+
+  // Neck
+  const neckM = new Mesh(new CylinderGeometry(0.045, 0.05, 0.08, 6), skinMat);
+  neckM.position.y = 0.59; g.add(neckM);
+
+  // Head
+  const headM = new Mesh(new SphereGeometry(0.11, 12, 10), skinMat);
+  headM.position.y = 0.72; headM.scale.set(1, 1.05, 0.92); g.add(headM);
+
+  // Hair / bald for monks
+  if (skin !== 'monk' && skin !== 'nun') {
+    const hair = new Mesh(new SphereGeometry(0.112, 12, 8, 0, Math.PI * 2, 0, Math.PI * 0.6), new MeshStandardMaterial({color: 0x1a1008, roughness: 0.9}));
+    hair.position.y = 0.73; g.add(hair);
+  }
+
+  return g;
+}
+
+function makeNameSprite(name, isMe) {
+  const c = document.createElement('canvas');
+  c.width = 256; c.height = 48;
+  const g = c.getContext('2d');
+  g.font = '600 22px "Noto Serif", Georgia, serif';
+  const tw = g.measureText(name).width;
+  const pw = Math.min(tw + 20, 248);
+  g.fillStyle = isMe ? 'rgba(122,37,24,.85)' : 'rgba(26,17,10,.65)';
+  g.beginPath(); g.roundRect((256 - pw) / 2, 6, pw, 34, 17); g.fill();
+  if (isMe) { g.strokeStyle = 'rgba(226,176,79,.8)'; g.lineWidth = 1.5; g.stroke(); }
+  g.fillStyle = '#f5ead6'; g.textAlign = 'center'; g.textBaseline = 'middle';
+  g.fillText(name, 128, 23);
+  const tex = new CanvasTexture(c);
+  const mat = new MeshBasicMaterial({map: tex, transparent: true, depthTest: false});
+  const mesh = new Mesh(new PlaneGeometry(1.0, 0.19), mat);
+  mesh.renderOrder = 999;
+  return mesh;
+}
+
+function freeSeat() { return seats.find(s => !s.taken) || null; }
+
+function addVisitor(name, skin, instant, isMe) {
+  const seat = freeSeat(); if (!seat) return null;
+  const avatar = makeAvatar(skin);
+  const tag = makeNameSprite(name, isMe);
+  tag.position.y = 0.95;
+  avatar.add(tag);
+
+  if (instant) {
+    avatar.position.set(seat.x, 0, seat.z);
+  } else {
+    avatar.position.set(0, 0, 12);
+  }
+  scene.add(avatar);
+
+  const v = {
+    name, skin, seat, avatar, tag, isMe: !!isMe,
+    state: instant ? 'sit' : 'walk',
+    walkT: 0, coins: 0, glow: 0, bow: 0, pray: 0,
+    phase: Math.random() * Math.PI * 2
+  };
+  seat.taken = v;
+  visitors.push(v);
+  updateCount();
+  return v;
+}
+
+function removeVisitor(v) {
+  if (!v) return;
+  v.seat.taken = null;
+  scene.remove(v.avatar);
+  visitors.splice(visitors.indexOf(v), 1);
+  updateCount();
+}
+
+function updateCount() {
+  document.getElementById('count').textContent = visitors.length;
+}
+
+// ── Audio system — layered, richer synthesis ──
+let AC = null, master = null, bellGain = null, mokGain = null, droneGain = null;
+let muted = false, mokTimer = null, bellTimer = null, haloPulse = 0;
+let audioMode = 'thien';
+
+function audioStart() {
+  if (AC) return;
+  AC = new (window.AudioContext || window.webkitAudioContext)();
+  master = AC.createGain(); master.gain.value = 0.7; master.connect(AC.destination);
+
+  bellGain = AC.createGain(); bellGain.gain.value = 0.8; bellGain.connect(master);
+  mokGain = AC.createGain(); mokGain.gain.value = 0.6; mokGain.connect(master);
+  droneGain = AC.createGain(); droneGain.gain.value = 1.0; droneGain.connect(master);
+
+  startDrone();
+  bell(); bellTimer = setInterval(bell, 50000);
+  if (audioMode === 'tung') mokTimer = setInterval(mok, 1200);
+  else if (audioMode === 'thien') mokTimer = setInterval(mok, 3000);
+}
+
+function startDrone() {
+  // Rich ambient pad — multiple detuned oscillators through filters
+  const freqs = [110, 165, 220, 330];
+  freqs.forEach((f, i) => {
+    const osc = AC.createOscillator();
+    osc.type = 'sine';
+    osc.frequency.value = f;
+    // Slow vibrato
+    const lfo = AC.createOscillator();
+    lfo.type = 'sine';
+    lfo.frequency.value = 0.1 + i * 0.03;
+    const lfoGain = AC.createGain();
+    lfoGain.gain.value = f * 0.003;
+    lfo.connect(lfoGain);
+    lfoGain.connect(osc.frequency);
+    lfo.start();
+
+    const g = AC.createGain();
+    g.gain.value = [0.04, 0.025, 0.015, 0.01][i];
+    const lp = AC.createBiquadFilter();
+    lp.type = 'lowpass';
+    lp.frequency.value = 400 + i * 50;
+    lp.Q.value = 0.7;
+    osc.connect(lp);
+    lp.connect(g);
+    g.connect(droneGain);
+    osc.start();
+  });
+}
+
+function bell(big) {
+  if (!AC || muted) return;
+  const t = AC.currentTime;
+  const k = big ? 1.8 : 1;
+
+  // Richer bell: strike transient + harmonic partials with beating
+  // Strike transient (noise burst)
+  const bufLen = AC.sampleRate * 0.05;
+  const buf = AC.createBuffer(1, bufLen, AC.sampleRate);
+  const d = buf.getChannelData(0);
+  for (let i = 0; i < bufLen; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / bufLen, 3);
+  const noise = AC.createBufferSource();
+  noise.buffer = buf;
+  const nBp = AC.createBiquadFilter(); nBp.type = 'bandpass'; nBp.frequency.value = 2000; nBp.Q.value = 2;
+  const nG = AC.createGain(); nG.gain.setValueAtTime(0.15 * k, t); nG.gain.exponentialRampToValueAtTime(0.001, t + 0.08);
+  noise.connect(nBp); nBp.connect(nG); nG.connect(bellGain);
+  noise.start(t); noise.stop(t + 0.1);
+
+  // Bell partials — temple bell frequencies with natural beating
+  const partials = [
+    {f: 220, a: 0.35, dec: 7},
+    {f: 220 * 1.005, a: 0.35, dec: 7},  // beating pair
+    {f: 440, a: 0.15, dec: 5},
+    {f: 660, a: 0.08, dec: 3.5},
+    {f: 880, a: 0.04, dec: 2.5},
+    {f: 1320, a: 0.025, dec: 1.8},
+    {f: 1760, a: 0.015, dec: 1.2},
+  ];
+
+  partials.forEach(p => {
+    const o = AC.createOscillator();
+    o.type = 'sine';
+    o.frequency.value = p.f / (big ? 1.5 : 1);
+    const g = AC.createGain();
+    g.gain.setValueAtTime(0, t);
+    g.gain.linearRampToValueAtTime(p.a * k, t + 0.008);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + p.dec * k);
+    o.connect(g); g.connect(bellGain);
+    o.start(t); o.stop(t + p.dec * k + 0.1);
+  });
+
+  haloPulse = 1;
+}
+
+function mok() {
+  if (!AC || muted || !me) return;
+  const t = AC.currentTime;
+
+  // Wood block sound: noise + resonant filter
+  const bufLen = AC.sampleRate * 0.04;
+  const buf = AC.createBuffer(1, bufLen, AC.sampleRate);
+  const data = buf.getChannelData(0);
+  for (let i = 0; i < bufLen; i++) data[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / bufLen, 6);
+  const src = AC.createBufferSource(); src.buffer = buf;
+
+  const bp = AC.createBiquadFilter(); bp.type = 'bandpass'; bp.frequency.value = 800; bp.Q.value = 5;
+  const bp2 = AC.createBiquadFilter(); bp2.type = 'bandpass'; bp2.frequency.value = 1200; bp2.Q.value = 3;
+  const g = AC.createGain();
+  g.gain.setValueAtTime(0.25, t);
+  g.gain.exponentialRampToValueAtTime(0.001, t + 0.12);
+
+  src.connect(bp); bp.connect(g);
+  src.connect(bp2); bp2.connect(g);
+  g.connect(mokGain);
+  src.start(t); src.stop(t + 0.15);
+
+  // Tonal body
+  const o = AC.createOscillator(); o.type = 'sine';
+  o.frequency.setValueAtTime(600, t);
+  o.frequency.exponentialRampToValueAtTime(380, t + 0.04);
+  const og = AC.createGain();
+  og.gain.setValueAtTime(0.08, t);
+  og.gain.exponentialRampToValueAtTime(0.001, t + 0.08);
+  o.connect(og); og.connect(mokGain);
+  o.start(t); o.stop(t + 0.1);
+}
+
+// ── TTS ──
+let viVoice = null;
+function pickViVoice() {
+  try {
+    const vs = speechSynthesis.getVoices().filter(v => /^vi([-_]|$)/i.test(v.lang));
+    const rank = v => (/natural|online|neural/i.test(v.name) ? 4 : 0) + (/google/i.test(v.name) ? 1 : 0);
+    viVoice = vs.sort((a, b) => rank(b) - rank(a))[0] || null;
+  } catch (e) { viVoice = null; }
+  const el = document.getElementById('voiceInfo');
+  if (el) el.textContent = viVoice ? 'Giọng đọc: ' + viVoice.name : 'Chưa có giọng tiếng Việt: lời nguyện chỉ hiện chữ.';
+}
+if ('speechSynthesis' in window) { pickViVoice(); speechSynthesis.addEventListener('voiceschanged', pickViVoice); }
+
+function ttsSpeak(text) {
+  try {
+    if (!viVoice) pickViVoice();
+    if (!viVoice) return;
+    speechSynthesis.cancel();
+    const u = new SpeechSynthesisUtterance(text);
+    u.voice = viVoice; u.lang = viVoice.lang; u.rate = 0.9; u.pitch = 0.9;
+    speechSynthesis.speak(u);
+  } catch (e) {}
+}
+
+// ── Feed, toast, merit, banner ──
+const feed = document.getElementById('feed');
+const toast = document.getElementById('toast');
+const SUTRA = [
+  'Nam mô A Di Đà Phật', 'Nam mô Bổn Sư Thích Ca Mâu Ni Phật',
+  'Nam mô Đại Bi Quán Thế Âm Bồ Tát', 'Nguyện cầu bình an cho gia đình',
+  'Cầu cho cha mẹ được khỏe mạnh', 'Nguyện đem công đức này hướng về khắp tất cả',
+  'Cầu cho thế giới hòa bình', 'Nguyện cho chúng sinh thoát khổ',
+  'Quán Tự Tại Bồ Tát hành thâm Bát Nhã Ba La Mật Đa'
+];
+
+function say(name, text, gift) {
+  const d = document.createElement('div');
+  d.className = 'msg' + (gift ? ' gift' : '');
+  const b = document.createElement('b'); b.textContent = name;
+  d.appendChild(b); d.append(' ' + text);
+  feed.appendChild(d);
+  while (feed.children.length > 6) feed.firstChild.remove();
+}
+
+function showToast(t) {
+  toast.textContent = t; toast.classList.add('show');
+  clearTimeout(showToast._t);
+  showToast._t = setTimeout(() => toast.classList.remove('show'), 4000);
+}
+
+function showBanner(name, act) {
+  document.getElementById('bannerName').textContent = name;
+  document.getElementById('bannerAct').textContent = act;
+  const b = document.getElementById('banner');
+  b.classList.add('show');
+  clearTimeout(showBanner._t);
+  showBanner._t = setTimeout(() => b.classList.remove('show'), 4500);
+}
+
+function renderBoard() {
+  const top = [...visitors].filter(v => v.coins > 0).sort((a, b) => b.coins - a.coins).slice(0, 5);
+  const ol = document.getElementById('boardList'); ol.innerHTML = '';
+  for (const v of top) {
+    const li = document.createElement('li'); li.textContent = v.name;
+    const s = document.createElement('span'); s.textContent = v.coins;
+    li.appendChild(s); ol.appendChild(li);
+  }
+  document.getElementById('board').hidden = top.length === 0;
+}
+
+// ── Donate ──
+function donate(v, coins, kind, text) {
+  v.coins += coins; v.glow = 1; v.bow = 1;
+  const big = coins >= 99;
+  const origin = new Vector3(v.seat.x, 1.2, v.seat.z);
+  const ct = big ? 25 : coins >= 20 ? 12 : 4;
+  const colors = {petal: 0xff88aa, incense: 0xddccaa, lotus: 0xff66cc, bell: 0xffd700};
+  spawnPetals(origin, ct, colors[kind]);
+  if (big) {
+    bell(true);
+    spawnPetals(new Vector3(0, 6, -7.8), 20, 0xffd700);
+  }
+  const label = {petal: 'Cánh sen', incense: 'Dâng hương', lotus: 'Hoa sen', bell: 'Thỉnh chuông'}[kind];
+  say(v.name, `dâng ${label}` + (text ? ` · "${text}"` : ''), true);
+  showBanner(v.name, `dâng ${label}`);
+  ttsSpeak(`${v.name} dâng ${label}. ${text || ''}`);
+  renderBoard();
+}
+
+// ── Demo crowd ──
+const DEMO = ['Diệu Hạnh','Minh Tâm','Thiện Đức','Huệ An','Tịnh Nhã','Quảng Trí','Chơn Như','Pháp Hỷ','Nguyên Thanh','Tâm Đăng','Diệu Liên','Trí Hải','Phước Lộc','Hạnh Nguyện','Như Ý','Bảo Châu','Thanh Lương','Từ Tâm'];
+const SKINS_ARR = ['man','woman','granny','monk','nun'];
+DEMO.forEach((n, i) => {
+  const v = addVisitor(n, SKINS_ARR[i % SKINS_ARR.length], true);
+  if (v) v.coins = [120, 80, 55, 30, 20, 12, 8, 5][i] || 0;
+});
+renderBoard();
+
+// Demo activity
+setInterval(() => {
+  if (visitors.length < 2) return;
+  const v = visitors[Math.floor(Math.random() * visitors.length)];
+  if (v === me) return;
+  if (Math.random() < 0.2) {
+    donate(v, [1, 1, 5, 20][Math.floor(Math.random() * 4)], ['petal', 'petal', 'incense', 'lotus'][Math.floor(Math.random() * 4)], '');
+  } else {
+    say(v.name, SUTRA[Math.floor(Math.random() * SUTRA.length)]);
+    v.bow = 1;
+  }
+}, 6000);
+
+// ── UI wiring ──
+let mySkin = 'man';
+document.getElementById('skin').addEventListener('click', e => {
+  const b = e.target.closest('button'); if (!b) return;
+  mySkin = b.dataset.skin;
+  for (const x of e.currentTarget.children) x.setAttribute('aria-pressed', x === b);
+});
+
+const gate = document.getElementById('gate');
+const form = document.getElementById('gateForm');
+const dharmaInput = document.getElementById('dharma');
+try { const s = localStorage.getItem('phapdanh'); if (s) dharmaInput.value = s; } catch (e) {}
+
+form.addEventListener('submit', e => {
+  e.preventDefault();
+  const name = dharmaInput.value.trim().replace(/\s+/g, ' ').slice(0, 20);
+  if (!name) return;
+  if (!freeSeat()) { showToast('Chánh điện đã kín chỗ, xin chờ một lát.'); return; }
+  try { localStorage.setItem('phapdanh', name); } catch (e) {}
+  audioStart();
+  me = addVisitor(name, mySkin, false, true);
+  gate.hidden = true;
+  document.getElementById('me').hidden = false;
+  document.getElementById('meName').textContent = name;
+  document.getElementById('audioPanel').hidden = false;
+  ['leave', 'gifts'].forEach(id => document.getElementById(id).hidden = false);
+  say(name, 'đã vào chánh điện');
+  showToast('Hoan nghênh ' + name + ' vào chánh điện');
+  ttsSpeak('Hoan nghênh ' + name + ' vào chánh điện');
+});
+
+document.getElementById('gifts').addEventListener('click', e => {
+  const b = e.target.closest('button'); if (!b || !me) return;
+  donate(me, +b.dataset.coins, b.dataset.fx, SUTRA[Math.floor(Math.random() * SUTRA.length)]);
+});
+
+// Audio controls
+document.getElementById('volMaster').addEventListener('input', e => {
+  if (master) master.gain.value = e.target.value / 100;
+});
+document.getElementById('volBell').addEventListener('input', e => {
+  if (bellGain) bellGain.gain.value = e.target.value / 100;
+});
+document.getElementById('volMok').addEventListener('input', e => {
+  if (mokGain) mokGain.gain.value = e.target.value / 100;
+});
+
+document.getElementById('audioModes').addEventListener('click', e => {
+  const b = e.target.closest('button'); if (!b) return;
+  audioMode = b.dataset.mode;
+  for (const x of e.currentTarget.children) x.classList.toggle('active', x === b);
+  clearInterval(mokTimer);
+  if (audioMode === 'tinh') {
+    if (droneGain) droneGain.gain.value = 0;
+    mokTimer = null;
+  } else if (audioMode === 'thien') {
+    if (droneGain) droneGain.gain.value = 1;
+    mokTimer = setInterval(mok, 3000);
+  } else if (audioMode === 'tung') {
+    if (droneGain) droneGain.gain.value = 0.6;
+    mokTimer = setInterval(mok, 1200);
+  }
+  try { localStorage.setItem('audioMode', audioMode); } catch (e) {}
+});
+try { const m = localStorage.getItem('audioMode'); if (m) { audioMode = m; } } catch (e) {}
+
+document.getElementById('leave').addEventListener('click', () => {
+  removeVisitor(me); me = null;
+  gate.hidden = false;
+  document.getElementById('me').hidden = true;
+  document.getElementById('audioPanel').hidden = true;
+  ['leave', 'gifts'].forEach(id => document.getElementById(id).hidden = true);
+  if (AC) { AC.close(); AC = null; }
+  clearInterval(mokTimer); clearInterval(bellTimer);
+  renderBoard();
+});
+
+canvas.addEventListener('pointerdown', () => {
+  if (!me || me.state !== 'sit') return;
+  const s = SUTRA[Math.floor(Math.random() * SUTRA.length)];
+  say(me.name, s); me.bow = 1; me.pray = 1;
+  spawnPetals(new Vector3(me.seat.x, 1.0, me.seat.z), 2, 0xff88aa);
+});
+
+// ── Camera ──
+let camAngle = 0.15;
+const camRadius = 11;
+const camHeight = 3.5;
+const camTarget = new Vector3(0, 2.8, -2);
+let userDrag = false, dragX = 0, camAngleVel = 0;
+
+canvas.addEventListener('pointerdown', e => {
+  if (e.target === canvas) { userDrag = true; dragX = e.clientX; camAngleVel = 0; }
+});
+window.addEventListener('pointermove', e => {
+  if (userDrag) {
+    const dx = (e.clientX - dragX) * 0.004;
+    camAngleVel = dx * 0.5;
+    camAngle += dx;
+    dragX = e.clientX;
+  }
+});
+window.addEventListener('pointerup', () => { userDrag = false; });
+
+// ── Main render loop ──
+let lastT = 0;
+const reducedMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+function animate(now) {
+  requestAnimationFrame(animate);
+  const dt = Math.min((now - lastT) / 1000, 0.05);
+  lastT = now;
+  const t = now / 1000;
+
+  // Camera
+  if (!userDrag) {
+    camAngleVel *= 0.95;
+    camAngle += dt * 0.02 + camAngleVel;
+  }
+  // Clamp angle to front-ish view
+  const clampedAngle = Math.max(-0.6, Math.min(0.6, camAngle % (Math.PI * 2)));
+  camera.position.x = Math.sin(camAngle) * camRadius;
+  camera.position.z = Math.cos(camAngle) * camRadius;
+  camera.position.y = camHeight + Math.sin(t * 0.15) * 0.15;
+  camera.lookAt(camTarget);
+
+  // Candle flicker (subtle, natural)
+  candleLights.forEach((l, i) => {
+    const flicker = Math.sin(t * 7.3 + i * 3.1) * Math.sin(t * 11.7 + i * 1.7);
+    l.intensity = 0.55 + 0.25 * flicker;
+  });
+
+  // Buddha halo
+  haloPulse = Math.max(0, haloPulse - dt * 0.35);
+  const haloBase = 0.4 + 0.15 * Math.sin(t * 1.2);
+  haloGroup.children.forEach((c, i) => {
+    if (c.material && c.material.opacity !== undefined) {
+      if (i < 3) c.material.opacity = (haloBase - i * 0.1) + haloPulse * 0.3;
+    }
+  });
+  buddhaGlow.intensity = 0.8 + 0.4 * Math.sin(t * 1.2) + haloPulse * 2;
+  haloGroup.rotation.z = t * 0.02;
+
+  // Dust motes
+  const dp = dustGeo.attributes.position.array;
+  for (let i = 0; i < dustCount; i++) {
+    const dd = dustData[i];
+    dp[i * 3] += dd.vx * dt + Math.sin(t * 0.3 + i * 0.7) * 0.003;
+    dp[i * 3 + 1] += dd.vy * dt + Math.sin(t * 0.2 + i) * 0.002;
+    dp[i * 3 + 2] += dd.vz * dt;
+    if (dp[i * 3 + 1] > 11 || dp[i * 3 + 1] < 0.5) dd.vy *= -1;
+    if (Math.abs(dp[i * 3]) > 9) dd.vx *= -1;
+    if (Math.abs(dp[i * 3 + 2] + 1) > 12) dd.vz *= -1;
+  }
+  dustGeo.attributes.position.needsUpdate = true;
+
+  // Incense smoke
+  const sp = smokeGeo.attributes.position.array;
+  for (let i = 0; i < smokeCount; i++) {
+    const sv = smokeVel[i];
+    sp[i * 3] += sv.vx * dt + Math.sin(t * 1.5 + i * 0.5) * 0.008;
+    sp[i * 3 + 1] += sv.vy * dt;
+    sp[i * 3 + 2] += sv.vz * dt + Math.cos(t + i) * 0.003;
+    if (sp[i * 3 + 1] > 8) {
+      sp[i * 3] = (Math.random() - 0.5) * 0.3;
+      sp[i * 3 + 1] = altar.position.y + 1.2;
+      sp[i * 3 + 2] = altar.position.z + 1.0;
+    }
+  }
+  smokeGeo.attributes.position.needsUpdate = true;
+
+  // Petal particles
+  for (let i = petalParticles.length - 1; i >= 0; i--) {
+    const p = petalParticles[i];
+    p.age += dt;
+    if (p.age > p.life) { scene.remove(p.mesh); petalParticles.splice(i, 1); continue; }
+    p.mesh.position.x += p.vx * dt + Math.sin(t * 3 + i) * 0.01;
+    p.mesh.position.y += p.vy * dt;
+    p.mesh.position.z += p.vz * dt;
+    p.vy -= 1.8 * dt;
+    p.mesh.rotation.x += p.spin * dt;
+    p.mesh.rotation.z += p.spin * 0.6 * dt;
+    p.mesh.material.opacity = Math.max(0, 0.85 * (1 - p.age / p.life));
+  }
+
+  // Sunlight beams gentle sway
+  beamMesh.rotation.y = Math.sin(t * 0.1) * 0.02;
+  beam2.rotation.y = Math.sin(t * 0.08 + 1) * 0.015;
+
+  // Visitors
+  for (const v of visitors) {
+    if (v.state === 'walk') {
+      const tx = v.seat.x, tz = v.seat.z;
+      const dx = tx - v.avatar.position.x, dz = tz - v.avatar.position.z;
+      const dist = Math.sqrt(dx * dx + dz * dz);
+      if (dist > 0.1) {
+        const sp = Math.min(2.5 * dt, dist);
+        v.avatar.position.x += (dx / dist) * sp;
+        v.avatar.position.z += (dz / dist) * sp;
+        v.avatar.lookAt(tx, 0, tz);
+      } else {
+        v.avatar.position.set(tx, 0, tz);
+        v.state = 'sit';
+        v.avatar.rotation.set(0, 0, 0);
+        if (v.isMe) showToast('Đã an tọa. Nam mô A Di Đà Phật.');
+      }
+    }
+
+    // Breathing
+    if (v.state === 'sit' && !reducedMotion) {
+      const breathe = Math.sin(t * 0.9 + v.phase) * 0.008;
+      v.avatar.position.y = breathe;
+    }
+
+    // Bow animation
+    v.bow = Math.max(0, v.bow - dt * 0.7);
+    v.avatar.rotation.x = v.bow > 0 ? Math.sin(v.bow * Math.PI) * 0.25 : 0;
+
+    // Prayer animation
+    v.pray = Math.max(0, v.pray - dt * 0.5);
+
+    // Name tag faces camera
+    v.tag.lookAt(camera.position);
+  }
+
+  renderer.render(scene, camera);
+}
+
+// ── Resize ──
+function onResize() {
+  camera.aspect = innerWidth / innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(innerWidth, innerHeight);
+}
+window.addEventListener('resize', onResize);
+
+requestAnimationFrame(animate);
+</script>
